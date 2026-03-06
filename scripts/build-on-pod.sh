@@ -36,6 +36,7 @@ echo "  Branch:        ${BRANCH}"
 echo "  Model type:    ${MODEL_TYPE}"
 echo "  ComfyUI ver:   ${COMFYUI_VERSION}"
 echo "  Image tag:     ${IMAGE_TAG}"
+echo "  CUDA level:   ${CUDA_LEVEL:-12.6}"
 echo "  HF token:      ${HUGGINGFACE_ACCESS_TOKEN:+(set)}"
 echo "============================================="
 
@@ -85,44 +86,30 @@ BUILD_ARGS=(
     --build-arg "COMFYUI_VERSION=${COMFYUI_VERSION}"
 )
 
-# CUDA version selection for Hunyuan models.
-# Default: CUDA 12.6 (works with RunPod driver >= 560.x, proven stable).
-# Override: set CUDA_LEVEL=12.8 for Blackwell GPUs (sm_120, needs driver >= 570.x).
+# CUDA version selection.
+# Default: CUDA 12.6 (works with A100, H100, driver >= 560.x).
+# Override: set CUDA_LEVEL=12.8 for Blackwell GPUs (RTX PRO 6000, sm_120, driver >= 570.x).
 CUDA_LEVEL="${CUDA_LEVEL:-12.6}"
 PYTORCH_VERSION="${PYTORCH_VERSION:-}"
 
-case "${MODEL_TYPE}" in
-    ltx-2.3)
-        BUILD_ARGS+=(
-            --build-arg "BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04"
-            --build-arg "CUDA_VERSION_FOR_COMFY=12.6"
-            --build-arg "ENABLE_PYTORCH_UPGRADE=true"
-            --build-arg "PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu126"
-            --build-arg "PYTORCH_VERSION=${PYTORCH_VERSION}"
-        )
-        echo "       Using CUDA 12.6 + PyTorch (ltx-2.3)"
-        ;;
-    hunyuan-instruct-nf4|hunyuan-instruct-int8)
-        if [ "${CUDA_LEVEL}" = "12.8" ]; then
-            BUILD_ARGS+=(
-                --build-arg "BASE_IMAGE=nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04"
-                --build-arg "ENABLE_PYTORCH_UPGRADE=true"
-                --build-arg "PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu128"
-                --build-arg "PYTORCH_VERSION=${PYTORCH_VERSION}"
-            )
-            echo "       Using CUDA 12.8 base + PyTorch ${PYTORCH_VERSION:-latest}+cu128 (Blackwell, needs driver >= 570)"
-        else
-            BUILD_ARGS+=(
-                --build-arg "BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04"
-                --build-arg "CUDA_VERSION_FOR_COMFY=12.6"
-                --build-arg "ENABLE_PYTORCH_UPGRADE=true"
-                --build-arg "PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu126"
-                --build-arg "PYTORCH_VERSION=${PYTORCH_VERSION}"
-            )
-            echo "       Using CUDA 12.6 base + PyTorch ${PYTORCH_VERSION:-latest}+cu126 (default, works with driver >= 560)"
-        fi
-        ;;
-esac
+if [ "${CUDA_LEVEL}" = "12.8" ]; then
+    BUILD_ARGS+=(
+        --build-arg "BASE_IMAGE=nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04"
+        --build-arg "ENABLE_PYTORCH_UPGRADE=true"
+        --build-arg "PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu128"
+        --build-arg "PYTORCH_VERSION=${PYTORCH_VERSION}"
+    )
+    echo "       Using CUDA 12.8 base + PyTorch ${PYTORCH_VERSION:-latest}+cu128 (Blackwell, needs driver >= 570)"
+else
+    BUILD_ARGS+=(
+        --build-arg "BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04"
+        --build-arg "CUDA_VERSION_FOR_COMFY=12.6"
+        --build-arg "ENABLE_PYTORCH_UPGRADE=true"
+        --build-arg "PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu126"
+        --build-arg "PYTORCH_VERSION=${PYTORCH_VERSION}"
+    )
+    echo "       Using CUDA 12.6 base + PyTorch ${PYTORCH_VERSION:-latest}+cu126 (default, works with driver >= 560)"
+fi
 
 if [ -n "${HUGGINGFACE_ACCESS_TOKEN}" ]; then
     BUILD_ARGS+=(--build-arg "HUGGINGFACE_ACCESS_TOKEN=${HUGGINGFACE_ACCESS_TOKEN}")
@@ -170,7 +157,11 @@ echo " Next steps:"
 echo "   1. Go to https://www.runpod.io/console/serverless"
 echo "   2. Create a new endpoint with container image:"
 echo "      ${IMAGE_TAG}"
-echo "   3. Pick a GPU (A100 40GB/80GB recommended for LTX-2.3)"
+if [ "${CUDA_LEVEL}" = "12.8" ]; then
+echo "   3. Pick GPU: RTX PRO 6000 Blackwell 96GB (built with CUDA 12.8)"
+else
+echo "   3. Pick GPU: A100 40GB/80GB or H100 (built with CUDA 12.6)"
+fi
 echo "   4. Set Min Workers=0, Max Workers=1"
-echo "   5. Destroy this pod to stop charges!"
+echo "   5. Destroy this build server to stop charges!"
 echo "============================================="

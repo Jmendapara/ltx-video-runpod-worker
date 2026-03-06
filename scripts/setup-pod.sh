@@ -5,7 +5,7 @@ set -euo pipefail
 # Setup ComfyUI + LTX-2.3 on a RunPod GPU Pod
 #
 # Usage:
-#   1. Create a RunPod GPU Pod (A100 40GB/80GB or 32GB+ VRAM, 100GB+ disk)
+#   1. Create a RunPod GPU Pod (RTX PRO 6000 96GB, A100 40/80GB, or any 32GB+ VRAM, 100GB+ disk)
 #   2. Open the web terminal or SSH in
 #   3. Run:
 #        curl -fsSL https://raw.githubusercontent.com/Jmendapara/ltx-video-runpod-worker/main/scripts/setup-pod.sh | bash
@@ -22,7 +22,7 @@ WORKSPACE="${WORKSPACE:-/workspace}"
 COMFYUI_DIR="${WORKSPACE}/ComfyUI"
 CHECKPOINT_NAME="ltx-2.3-22b-distilled.safetensors"
 HF_REPO="Lightricks/LTX-2.3"
-MODEL_SIZE="~46 GB"
+MODEL_SIZE="~55 GB total"
 
 echo "============================================="
 echo " ComfyUI + LTX-2.3 Pod Setup"
@@ -66,32 +66,44 @@ echo "[2/5] Installing node requirements..."
 $PIP install -r "${CUSTOM_NODES_DIR}/requirements.txt"
 $PIP install "huggingface_hub[hf_xet]"
 
-# ---- Step 3: Download LTX-2.3 checkpoint ----
+# ---- Step 3: Download LTX-2.3 models ----
 CHECKPOINT_DIR="${COMFYUI_DIR}/models/checkpoints"
-mkdir -p "${CHECKPOINT_DIR}"
+LORA_DIR="${COMFYUI_DIR}/models/loras"
+UPSCALER_DIR="${COMFYUI_DIR}/models/latent_upscale_models"
+TEXT_ENC_DIR="${COMFYUI_DIR}/models/text_encoders"
+mkdir -p "${CHECKPOINT_DIR}" "${LORA_DIR}" "${UPSCALER_DIR}" "${TEXT_ENC_DIR}"
+
 CHECKPOINT_PATH="${CHECKPOINT_DIR}/${CHECKPOINT_NAME}"
+export HF_TOKEN="${HF_TOKEN:-}"
 
 if [ -f "${CHECKPOINT_PATH}" ]; then
     echo "[3/5] Checkpoint already present: ${CHECKPOINT_PATH}"
 else
-    echo "[3/5] Downloading ${HF_REPO} ${CHECKPOINT_NAME} (${MODEL_SIZE})..."
+    echo "[3/5] Downloading ${HF_REPO} models (${MODEL_SIZE} total)..."
     echo "       Accept the model license at https://huggingface.co/${HF_REPO} if gated."
-    export HF_TOKEN="${HF_TOKEN:-}"
     $PYTHON -c "
 from huggingface_hub import hf_hub_download
-import os
+import os, shutil
 token = os.environ.get('HF_TOKEN') or os.environ.get('HUGGINGFACE_ACCESS_TOKEN')
-hf_hub_download(
-    repo_id='${HF_REPO}',
-    filename='${CHECKPOINT_NAME}',
-    local_dir='${CHECKPOINT_DIR}',
-    token=token,
-)
+hf_hub_download(repo_id='${HF_REPO}', filename='${CHECKPOINT_NAME}', local_dir='${CHECKPOINT_DIR}', token=token)
+hf_hub_download(repo_id='${HF_REPO}', filename='ltx-2.3-22b-distilled-lora-384.safetensors', local_dir='${LORA_DIR}', token=token)
+hf_hub_download(repo_id='${HF_REPO}', filename='ltx-2.3-spatial-upscaler-x2-1.0.safetensors', local_dir='${UPSCALER_DIR}', token=token)
+hf_hub_download(repo_id='Comfy-Org/ltx-2', filename='split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors', local_dir='/tmp/ltx-text-enc', token=token)
+shutil.move('/tmp/ltx-text-enc/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors', '${TEXT_ENC_DIR}/gemma_3_12B_it_fp4_mixed.safetensors')
 "
-    echo "[3/5] Checkpoint downloaded."
+    echo "[3/5] All models downloaded."
 fi
 
-# ---- Step 4: Versions ----
+# ---- Step 4: Blackwell GPU detection + PyTorch upgrade ----
+GPU_ARCH=$($PYTHON -c "import torch; print(torch.cuda.get_device_capability()[0]*10+torch.cuda.get_device_capability()[1]) if torch.cuda.is_available() else print(0)" 2>/dev/null || echo "0")
+if [ "$GPU_ARCH" -ge 120 ]; then
+    echo "[4/5] Blackwell GPU detected (sm_${GPU_ARCH}). Upgrading PyTorch to CUDA 12.8..."
+    $PIP install --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+    echo "[4/5] PyTorch upgraded for Blackwell."
+else
+    echo "[4/5] GPU arch sm_${GPU_ARCH} — no PyTorch upgrade needed."
+fi
+
 echo ""
 echo "============================================="
 echo " Setup Complete — Versions"

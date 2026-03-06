@@ -565,38 +565,37 @@ def get_history(prompt_id):
     return response.json()
 
 
-def get_image_data(filename, subfolder, image_type):
+def get_file_data(filename, subfolder, file_type):
     """
-    Fetch image bytes from the ComfyUI /view endpoint.
+    Fetch file bytes (image, video, etc.) from the ComfyUI /view endpoint.
 
     Args:
-        filename (str): The filename of the image.
-        subfolder (str): The subfolder where the image is stored.
-        image_type (str): The type of the image (e.g., 'output').
+        filename (str): The filename to fetch.
+        subfolder (str): The subfolder where the file is stored.
+        file_type (str): The type category (e.g., 'output').
 
     Returns:
-        bytes: The raw image data, or None if an error occurs.
+        bytes: The raw file data, or None if an error occurs.
     """
     print(
-        f"worker-comfyui - Fetching image data: type={image_type}, subfolder={subfolder}, filename={filename}"
+        f"worker-comfyui - Fetching file data: type={file_type}, subfolder={subfolder}, filename={filename}"
     )
-    data = {"filename": filename, "subfolder": subfolder, "type": image_type}
+    data = {"filename": filename, "subfolder": subfolder, "type": file_type}
     url_values = urllib.parse.urlencode(data)
     try:
-        # Use requests for consistency and timeout
-        response = requests.get(f"http://{COMFY_HOST}/view?{url_values}", timeout=60)
+        response = requests.get(f"http://{COMFY_HOST}/view?{url_values}", timeout=120)
         response.raise_for_status()
-        print(f"worker-comfyui - Successfully fetched image data for {filename}")
+        print(f"worker-comfyui - Successfully fetched file data for {filename}")
         return response.content
     except requests.Timeout:
-        print(f"worker-comfyui - Timeout fetching image data for {filename}")
+        print(f"worker-comfyui - Timeout fetching file data for {filename}")
         return None
     except requests.RequestException as e:
-        print(f"worker-comfyui - Error fetching image data for {filename}: {e}")
+        print(f"worker-comfyui - Error fetching file data for {filename}: {e}")
         return None
     except Exception as e:
         print(
-            f"worker-comfyui - Unexpected error fetching image data for {filename}: {e}"
+            f"worker-comfyui - Unexpected error fetching file data for {filename}: {e}"
         )
         return None
 
@@ -652,7 +651,8 @@ def handler(job):
     ws = None
     client_id = str(uuid.uuid4())
     prompt_id = None
-    output_data = []
+    output_images = []
+    output_videos = []
     errors = []
 
     try:
@@ -782,52 +782,59 @@ def handler(job):
 
         print(f"worker-comfyui - Processing {len(outputs)} output nodes...")
         for node_id, node_output in outputs.items():
-            if "images" in node_output:
-                print(
-                    f"worker-comfyui - Node {node_id} contains {len(node_output['images'])} image(s)"
-                )
-                for image_info in node_output["images"]:
-                    filename = image_info.get("filename")
-                    subfolder = image_info.get("subfolder", "")
-                    img_type = image_info.get("type")
+            for media_key, target_list in [
+                ("images", output_images),
+                ("videos", output_videos),
+            ]:
+                if media_key not in node_output:
+                    continue
 
-                    # skip temp images
-                    if img_type == "temp":
+                items = node_output[media_key]
+                print(
+                    f"worker-comfyui - Node {node_id} contains {len(items)} {media_key}"
+                )
+                for item_info in items:
+                    filename = item_info.get("filename")
+                    subfolder = item_info.get("subfolder", "")
+                    item_type = item_info.get("type")
+
+                    if item_type == "temp":
                         print(
-                            f"worker-comfyui - Skipping image {filename} because type is 'temp'"
+                            f"worker-comfyui - Skipping {media_key} {filename} because type is 'temp'"
                         )
                         continue
 
                     if not filename:
-                        warn_msg = f"Skipping image in node {node_id} due to missing filename: {image_info}"
+                        warn_msg = f"Skipping {media_key} in node {node_id} due to missing filename: {item_info}"
                         print(f"worker-comfyui - {warn_msg}")
                         errors.append(warn_msg)
                         continue
 
-                    image_bytes = get_image_data(filename, subfolder, img_type)
+                    file_bytes = get_file_data(filename, subfolder, item_type)
 
-                    if image_bytes:
-                        file_extension = os.path.splitext(filename)[1] or ".png"
+                    if file_bytes:
+                        file_extension = os.path.splitext(filename)[1] or (
+                            ".mp4" if media_key == "videos" else ".png"
+                        )
 
                         if os.environ.get("BUCKET_ENDPOINT_URL"):
                             try:
                                 with tempfile.NamedTemporaryFile(
                                     suffix=file_extension, delete=False
                                 ) as temp_file:
-                                    temp_file.write(image_bytes)
+                                    temp_file.write(file_bytes)
                                     temp_file_path = temp_file.name
                                 print(
-                                    f"worker-comfyui - Wrote image bytes to temporary file: {temp_file_path}"
+                                    f"worker-comfyui - Wrote {filename} to temporary file: {temp_file_path}"
                                 )
 
                                 print(f"worker-comfyui - Uploading {filename} to S3...")
                                 s3_url = rp_upload.upload_image(job_id, temp_file_path)
-                                os.remove(temp_file_path)  # Clean up temp file
+                                os.remove(temp_file_path)
                                 print(
                                     f"worker-comfyui - Uploaded {filename} to S3: {s3_url}"
                                 )
-                                # Append dictionary with filename and URL
-                                output_data.append(
+                                target_list.append(
                                     {
                                         "filename": filename,
                                         "type": "s3_url",
@@ -848,30 +855,37 @@ def handler(job):
                                             f"worker-comfyui - Error removing temp file {temp_file_path}: {rm_err}"
                                         )
                         else:
-                            # Return as base64 string
                             try:
-                                base64_image = base64.b64encode(image_bytes).decode(
+                                file_size_mb = len(file_bytes) / (1024 * 1024)
+                                if media_key == "videos" and file_size_mb > 15:
+                                    print(
+                                        f"worker-comfyui - WARNING: {filename} is {file_size_mb:.1f} MB. "
+                                        f"Large video responses may be truncated by RunPod. "
+                                        f"Configure S3 upload (BUCKET_ENDPOINT_URL) for reliable delivery."
+                                    )
+                                base64_data = base64.b64encode(file_bytes).decode(
                                     "utf-8"
                                 )
-                                # Append dictionary with filename and base64 data
-                                output_data.append(
+                                target_list.append(
                                     {
                                         "filename": filename,
                                         "type": "base64",
-                                        "data": base64_image,
+                                        "data": base64_data,
                                     }
                                 )
-                                print(f"worker-comfyui - Encoded {filename} as base64")
+                                print(
+                                    f"worker-comfyui - Encoded {filename} as base64 ({file_size_mb:.1f} MB)"
+                                )
                             except Exception as e:
                                 error_msg = f"Error encoding {filename} to base64: {e}"
                                 print(f"worker-comfyui - {error_msg}")
                                 errors.append(error_msg)
                     else:
-                        error_msg = f"Failed to fetch image data for {filename} from /view endpoint."
+                        error_msg = f"Failed to fetch {media_key} data for {filename} from /view endpoint."
                         errors.append(error_msg)
 
-            # Check for other output types
-            other_keys = [k for k in node_output.keys() if k != "images"]
+            handled_keys = {"images", "videos"}
+            other_keys = [k for k in node_output.keys() if k not in handled_keys]
             if other_keys:
                 warn_msg = (
                     f"Node {node_id} produced unhandled output keys: {other_keys}."
@@ -903,28 +917,33 @@ def handler(job):
             ws.close()
 
     final_result = {}
+    has_output = bool(output_images) or bool(output_videos)
 
-    if output_data:
-        final_result["images"] = output_data
+    if output_images:
+        final_result["images"] = output_images
+    if output_videos:
+        final_result["videos"] = output_videos
 
     if errors:
         final_result["errors"] = errors
         print(f"worker-comfyui - Job completed with errors/warnings: {errors}")
 
-    if not output_data and errors:
-        print(f"worker-comfyui - Job failed with no output images.")
+    if not has_output and errors:
+        print(f"worker-comfyui - Job failed with no output.")
         return {
             "error": "Job processing failed",
             "details": errors,
         }
-    elif not output_data and not errors:
+    elif not has_output and not errors:
         print(
-            f"worker-comfyui - Job completed successfully, but the workflow produced no images."
+            f"worker-comfyui - Job completed successfully, but the workflow produced no output."
         )
-        final_result["status"] = "success_no_images"
+        final_result["status"] = "success_no_output"
         final_result["images"] = []
 
-    print(f"worker-comfyui - Job completed. Returning {len(output_data)} image(s).")
+    print(
+        f"worker-comfyui - Job completed. Returning {len(output_images)} image(s), {len(output_videos)} video(s)."
+    )
     return final_result
 
 

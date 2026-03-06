@@ -104,7 +104,7 @@ ARG MODEL_TYPE=ltx-2.3
 
 WORKDIR /comfyui
 
-RUN mkdir -p models/checkpoints models/vae models/unet models/clip models/text_encoders models/diffusion_models models/model_patches
+RUN mkdir -p models/checkpoints models/vae models/unet models/clip models/text_encoders models/diffusion_models models/model_patches models/loras models/latent_upscale_models
 
 # ---- Model-specific custom nodes and models ----
 # Copy patch script once (used only for Hunyuan)
@@ -118,12 +118,20 @@ RUN if [ "$MODEL_TYPE" = "hunyuan-instruct-nf4" ] || [ "$MODEL_TYPE" = "hunyuan-
     fi
 RUN rm -f /tmp/patch-hunyuan-paths.py
 
-# LTX-2.3: install ComfyUI-LTXVideo and download distilled checkpoint
+# LTX-2.3: install ComfyUI-LTXVideo, download checkpoint + text encoder + LoRA + spatial upscaler
 RUN if [ "$MODEL_TYPE" = "ltx-2.3" ]; then \
       comfy-node-install https://github.com/Lightricks/ComfyUI-LTXVideo && \
       uv pip install "huggingface_hub[hf_xet]" && \
-      HF_TOKEN="${HUGGINGFACE_ACCESS_TOKEN}" python3 -c "import os; from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-22b-distilled.safetensors', local_dir='/comfyui/models/checkpoints', token=os.environ.get('HF_TOKEN') or None)" && \
-      rm -rf /root/.cache/huggingface /tmp/hf_xet* /tmp/tmp* && uv cache clean; \
+      HF_TOKEN="${HUGGINGFACE_ACCESS_TOKEN}" python3 -c "\
+import os; from huggingface_hub import hf_hub_download; \
+token = os.environ.get('HF_TOKEN') or None; \
+hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-22b-distilled.safetensors', local_dir='/comfyui/models/checkpoints', token=token); \
+hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-22b-distilled-lora-384.safetensors', local_dir='/comfyui/models/loras', token=token); \
+hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-spatial-upscaler-x2-1.0.safetensors', local_dir='/comfyui/models/latent_upscale_models', token=token); \
+hf_hub_download(repo_id='Comfy-Org/ltx-2', filename='split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors', local_dir='/tmp/ltx-text-enc', token=token); \
+import shutil; shutil.move('/tmp/ltx-text-enc/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors', '/comfyui/models/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors'); \
+" && \
+      rm -rf /root/.cache/huggingface /tmp/hf_xet* /tmp/tmp* /tmp/ltx-text-enc && uv cache clean; \
     fi
 
 RUN if [ "$MODEL_TYPE" = "sdxl" ]; then \

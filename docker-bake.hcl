@@ -202,6 +202,22 @@ target "hunyuan-instruct-int8" {
   inherits = ["base"]
 }
 
+target "ltx-2.3-blackwell" {
+  context = "."
+  dockerfile = "Dockerfile"
+  target = "final"
+  args = {
+    BASE_IMAGE = "nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04"
+    COMFYUI_VERSION = "${COMFYUI_VERSION}"
+    CUDA_VERSION_FOR_COMFY = ""
+    ENABLE_PYTORCH_UPGRADE = "true"
+    PYTORCH_INDEX_URL = "https://download.pytorch.org/whl/cu128"
+    MODEL_TYPE = "ltx-2.3"
+  }
+  tags = ["${DOCKERHUB_REPO}/${DOCKERHUB_IMG}:${RELEASE_VERSION}-ltx-2.3-blackwell"]
+  platforms = ["linux/amd64"]
+}
+
 target "base-cuda12-8-1" {
   context = "."
   dockerfile = "Dockerfile"
