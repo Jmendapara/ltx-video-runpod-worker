@@ -87,20 +87,51 @@ Use a cheap VPS from Hetzner Cloud or any provider.
 
 > **Important:** Docker needs space for intermediate build layers in addition to the final image. The image is ~65–75 GB. Models are downloaded directly in the final stage (no multi-stage COPY) to avoid doubling disk usage, but build layers still need headroom.
 
-### 1.2 SSH into the Server
+### 1.2 Add an SSH Key (recommended)
+
+Using an SSH key avoids Hetzner emailing you root credentials.
+
+**Generate a key** (skip if you already have one at `~/.ssh/id_ed25519`):
+
+```bash
+ssh-keygen -t ed25519 -C "your-email@example.com"
+```
+
+Press Enter for the default file location and optionally set a passphrase.
+
+**Add it to Hetzner:** Go to **Security > SSH Keys > Add SSH Key**, paste the contents of your public key:
+
+```bash
+# macOS / Linux
+cat ~/.ssh/id_ed25519.pub
+
+# Windows PowerShell
+Get-Content ~\.ssh\id_ed25519.pub | Set-Clipboard
+```
+
+Select this key when creating the server.
+
+### 1.3 SSH into the Server
 
 ```bash
 ssh root@YOUR_SERVER_IP
 ```
 
-### 1.3 Install Docker
+> **"REMOTE HOST IDENTIFICATION HAS CHANGED"** — If you reuse an IP from a previous server, SSH will reject the connection because the old fingerprint is cached. Remove it and reconnect:
+>
+> ```bash
+> ssh-keygen -R YOUR_SERVER_IP
+> ssh root@YOUR_SERVER_IP
+> ```
+
+### 1.4 Install Docker
 
 ```bash
 curl -fsSL https://get.docker.com | sh
 systemctl start docker
 ```
 
-### 1.4 Set Environment Variables
+### 1.5 Set Environment Variables
 
 **For RTX PRO 6000 Blackwell 96GB (recommended):**
 
@@ -128,7 +159,7 @@ If the model requires a Hugging Face token (gated access):
 export HUGGINGFACE_ACCESS_TOKEN="hf_xxxxxxxx"
 ```
 
-### 1.5 CUDA Level Selection
+### 1.6 CUDA Level Selection
 
 The `CUDA_LEVEL` variable controls which GPU architectures the image supports. **You must set this correctly for your target GPU.**
 
@@ -139,7 +170,7 @@ The `CUDA_LEVEL` variable controls which GPU architectures the image supports. *
 
 > **Important:** The RTX PRO 6000 is a Blackwell GPU (sm_120). If you build with CUDA 12.6, the model will fail at runtime with `CUDA error: no kernel image is available for execution on the device`. Always use `CUDA_LEVEL=12.8` for Blackwell GPUs.
 
-### 1.6 Run the Build Script
+### 1.7 Run the Build Script
 
 ```bash
 cd /tmp && curl -fsSL "https://raw.githubusercontent.com/Jmendapara/ltx-video-runpod-worker/main/scripts/build-on-pod.sh?ts=$(date +%s)" | bash
@@ -159,7 +190,7 @@ This script:
 
 Expect **60–90 minutes** (mostly model download at ~55 GB plus image build). The Docker image export step alone can take 20–30 minutes due to the large image size.
 
-### 1.7 Delete the Server
+### 1.8 Delete the Server
 
 Once the push completes, **delete the server immediately** to stop charges.
 

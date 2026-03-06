@@ -20,7 +20,7 @@ set -euo pipefail
 REPO_URL="${REPO_URL:-https://github.com/Jmendapara/ltx-video-runpod-worker.git}"
 BRANCH="${BRANCH:-main}"
 MODEL_TYPE="${MODEL_TYPE:-ltx-2.3}"
-COMFYUI_VERSION="${COMFYUI_VERSION:-v0.14.2}"
+COMFYUI_VERSION="${COMFYUI_VERSION:-v0.16.3}"
 HUGGINGFACE_ACCESS_TOKEN="${HUGGINGFACE_ACCESS_TOKEN:-}"
 
 # Docker Hub credentials
