@@ -1,0 +1,49 @@
+{
+  "input": {
+    "workflow": {
+      "1": {
+        "inputs": {
+          "model_name": "HunyuanImage-3.0-Instruct-Distil-INT8",
+          "force_reload": false,
+          "attention_impl": "sdpa",
+          "moe_impl": "eager",
+          "vram_reserve_gb": 30,
+          "blocks_to_swap": 0
+        },
+        "class_type": "HunyuanInstructLoader",
+        "_meta": {
+          "title": "Hunyuan Instruct Loader"
+        }
+      },
+      "2": {
+        "inputs": {
+          "model": ["1", 0],
+          "prompt": "A golden retriever sitting on a beach at sunset, photorealistic, warm lighting",
+          "bot_task": "image",
+          "seed": 42,
+          "system_prompt": "dynamic",
+          "resolution": "1024x1024 (1:1 Square)",
+          "steps": -1,
+          "guidance_scale": -1,
+          "flow_shift": 2.8,
+          "max_new_tokens": 2048,
+          "verbose": 0
+        },
+        "class_type": "HunyuanInstructGenerate",
+        "_meta": {
+          "title": "Hunyuan Instruct Generate"
+        }
+      },
+      "3": {
+        "inputs": {
+          "filename_prefix": "ComfyUI",
+          "images": ["2", 0]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+          "title": "Save Image"
+        }
+      }
+    }
+  }
+}

@@ -1,119 +1,192 @@
 {
-  "input": {
-    "images": [
-      {
-        "name": "test.png",
-        "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAMklEQVR4nGI5ZdXAQEvARFPTRy0YtWDUglELRi0YtWDUglELRi0YtWDUAioCQAAAAP//E24Bx3jUKuYAAAAASUVORK5CYII="
-      }
-    ],
-    "workflow": {
-      "6": {
-        "inputs": {
-          "text": "anime cat with massive fluffy fennec ears and a big fluffy tail blonde messy long hair blue eyes wearing a construction outfit placing a fancy black forest cake with candles on top of a dinner table of an old dark Victorian mansion lit by candlelight with a bright window to the foggy forest and very expensive stuff everywhere there are paintings on the walls",
-          "clip": ["30", 1]
-        },
-        "class_type": "CLIPTextEncode",
-        "_meta": {
-          "title": "CLIP Text Encode (Positive Prompt)"
-        }
-      },
-      "8": {
-        "inputs": {
-          "samples": ["31", 0],
-          "vae": ["30", 2]
-        },
-        "class_type": "VAEDecode",
-        "_meta": {
-          "title": "VAE Decode"
-        }
-      },
-      "9": {
-        "inputs": {
-          "filename_prefix": "ComfyUI",
-          "images": ["8", 0]
-        },
-        "class_type": "SaveImage",
-        "_meta": {
-          "title": "Save Image"
-        }
-      },
-      "27": {
-        "inputs": {
-          "width": 512,
-          "height": 512,
-          "batch_size": 1
-        },
-        "class_type": "EmptySD3LatentImage",
-        "_meta": {
-          "title": "EmptySD3LatentImage"
-        }
-      },
-      "30": {
-        "inputs": {
-          "ckpt_name": "flux1-dev-fp8.safetensors"
-        },
-        "class_type": "CheckpointLoaderSimple",
-        "_meta": {
-          "title": "Load Checkpoint"
-        }
-      },
-      "31": {
-        "inputs": {
-          "seed": 243057879077961,
-          "steps": 10,
-          "cfg": 1,
-          "sampler_name": "euler",
-          "scheduler": "simple",
-          "denoise": 1,
-          "model": ["30", 0],
-          "positive": ["35", 0],
-          "negative": ["33", 0],
-          "latent_image": ["27", 0]
-        },
-        "class_type": "KSampler",
-        "_meta": {
-          "title": "KSampler"
-        }
-      },
-      "33": {
-        "inputs": {
-          "text": "",
-          "clip": ["30", 1]
-        },
-        "class_type": "CLIPTextEncode",
-        "_meta": {
-          "title": "CLIP Text Encode (Negative Prompt)"
-        }
-      },
-      "35": {
-        "inputs": {
-          "guidance": 3.5,
-          "conditioning": ["6", 0]
-        },
-        "class_type": "FluxGuidance",
-        "_meta": {
-          "title": "FluxGuidance"
-        }
-      },
-      "38": {
-        "inputs": {
-          "images": ["8", 0]
-        },
-        "class_type": "PreviewImage",
-        "_meta": {
-          "title": "Preview Image"
-        }
-      },
-      "40": {
-        "inputs": {
-          "filename_prefix": "ComfyUI",
-          "images": ["8", 0]
-        },
-        "class_type": "SaveImage",
-        "_meta": {
-          "title": "Save Image"
-        }
-      }
+  "21": {
+    "inputs": {
+      "value": -46152910560298
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "29": {
+    "inputs": {
+      "value": "s4v4nn4h, blonde hair, hazel eyes, brown eyebrows, light freckles around the nose.\n\nsharp detail in eyes, realistic eyes, real reflections in eyes \n\ntrue-to-scale, realistic human-scale dimensions\n\nno extra limbs, no extra fingers, no missing limbs, no deformed hands, no mutated hands, no fused fingers, no disfigured, no bad anatomy, no cloned face, no unnatural poses\n\nA woman stands in the center of a wide alpine meadow filled with swaying golden tall grass and small clusters of moss-covered rocks. The background features distant, soft-focus jagged mountain peaks under a clear blue sky. The overall scene captures the quiet stillness of a high-altitude afternoon during the peak of summer. lighting: Bright, direct afternoon sunlight hits her from the front, casting soft shadows behind her and highlighting the textures of her clothing. The light is warm and golden, emphasizing the earthy tones of the environment without any harsh glare or silhouettes. The sky is bright and serves as a vibrant backdrop that makes the subject pop. pose: She stands with her weight shifted onto her right leg, while her left leg is slightly bent at the knee with her toes resting on a flat stone. Her arms are raised comfortably to adjust a silk scarf on her head, with elbows pointed outward and fingers delicately tucked into the fabric. Her posture is relaxed and tall, mirroring the vertical lines of the surrounding pines. clothing: She wears a hand-crocheted bikini top in a deep terracotta orange featuring intricate shell-stitch patterns. For bottoms, she has on high-waisted linen trousers in a pale oatmeal color that drape loosely around her ankles. A small silk headscarf in a dusty indigo floral print is tied over her hair. vibes: Earthy, adventurous, and serene. The image feels like a documented moment of a peaceful solo journey through the wilderness. It balances a sense of rugged exploration with a soft, feminine aesthetic. facial expression: She has a soft, closed-mouth smile while looking slightly off-camera toward the horizon. Her eyes are narrowed slightly against the brightness of the sun, giving her a look of genuine contentment. Her expression is calm, reflecting the stillness of the mountain air. type of shot (composition and framing): A full-body medium-long shot that captures her from head to toe while including a significant portion of the meadow. She is centered in the frame to create a sense of balance. The camera is positioned at eye level to maintain an intimate, personal perspective. camera details: Shot on a 35mm film camera with a slight grain and natural color saturation. The lens has a shallow depth of field, keeping the woman in sharp focus while the distant mountains are softly blurred. The colors are warm, leaning into the oranges and greens of the landscape.\n\n\namateur digital snapshot, candid, smartphone capture, high ISO noise, visible pores, visible vellus hair, subsurface scattering, detailed skin texture, wide-angle lens, barrel distortion, chromatic aberration, depth of field\n"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Prompt"
+    }
+  },
+  "31": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "28:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "28:30": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "28:29": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "28:33": {
+    "inputs": {
+      "conditioning": [
+        "28:27",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "28:8": {
+    "inputs": {
+      "samples": [
+        "28:3",
+        0
+      ],
+      "vae": [
+        "28:29",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "28:13": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "28:27": {
+    "inputs": {
+      "text": [
+        "29",
+        0
+      ],
+      "clip": [
+        "28:30",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "28:11": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "28:37",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "28:28": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "28:3": {
+    "inputs": {
+      "seed": [
+        "21",
+        0
+      ],
+      "steps": 30,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "28:11",
+        0
+      ],
+      "positive": [
+        "28:27",
+        0
+      ],
+      "negative": [
+        "28:33",
+        0
+      ],
+      "latent_image": [
+        "28:13",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "28:37": {
+    "inputs": {
+      "lora_name": "z_image_turbo_s4v4nn4h_lora.safetensors",
+      "strength_model": 0.97,
+      "model": [
+        "28:39",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoraLoaderModelOnly"
+    }
+  },
+  "28:39": {
+    "inputs": {
+      "lora_name": "RealisticSnapshot-Zimage-Turbov5.safetensors",
+      "strength_model": 0.58,
+      "model": [
+        "28:28",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoraLoaderModelOnly"
     }
   }
 }

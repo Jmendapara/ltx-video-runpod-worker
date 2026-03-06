@@ -16,8 +16,8 @@ Both tests will use the data from [`test_input.json`](../test_input.json), so ma
 
 1.  **Clone the repository** (if you haven't already):
     ```bash
-    git clone https://github.com/runpod-workers/worker-comfyui.git
-    cd worker-comfyui
+    git clone https://github.com/Jmendapara/hunyuan-instruct-nf4-runpod-worker.git
+    cd hunyuan-instruct-nf4-runpod-worker
     ```
 2.  **Create a virtual environment**:
     ```bash

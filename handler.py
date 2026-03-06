@@ -68,6 +68,87 @@ def _comfy_server_status():
         return {"reachable": False, "error": str(exc)}
 
 
+def _collect_crash_diagnostics():
+    """
+    Collect system diagnostics after ComfyUI crashes to help identify root cause
+    (OOM kill, CUDA error, etc.). Returns a dict of diagnostic info.
+    """
+    import subprocess
+
+    diag = {}
+
+    # Check if ComfyUI process is still running
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "comfyui/main.py"],
+            capture_output=True, text=True, timeout=5,
+        )
+        diag["comfyui_process_alive"] = result.returncode == 0
+        if result.stdout.strip():
+            diag["comfyui_pids"] = result.stdout.strip().split("\n")
+    except Exception as e:
+        diag["comfyui_process_check_error"] = str(e)
+
+    # Check dmesg for recent OOM kills
+    try:
+        result = subprocess.run(
+            ["dmesg", "-T"],
+            capture_output=True, text=True, timeout=5,
+        )
+        oom_lines = [
+            line for line in result.stdout.splitlines()
+            if "oom" in line.lower() or "killed process" in line.lower()
+                or "out of memory" in line.lower()
+        ]
+        if oom_lines:
+            diag["oom_kill_detected"] = True
+            diag["oom_messages"] = oom_lines[-5:]  # last 5 OOM lines
+        else:
+            diag["oom_kill_detected"] = False
+    except Exception as e:
+        diag["dmesg_error"] = str(e)
+
+    # GPU memory usage via nvidia-smi
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total,gpu_name",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            diag["gpu_info"] = result.stdout.strip()
+        elif result.stderr.strip():
+            diag["nvidia_smi_error"] = result.stderr.strip()
+    except Exception as e:
+        diag["nvidia_smi_error"] = str(e)
+
+    # System memory
+    try:
+        result = subprocess.run(
+            ["free", "-h"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            diag["system_memory"] = result.stdout.strip()
+    except Exception as e:
+        diag["free_error"] = str(e)
+
+    # Tail of ComfyUI log file (captures the actual crash output)
+    comfy_log = "/var/log/comfyui.log"
+    try:
+        if os.path.exists(comfy_log):
+            result = subprocess.run(
+                ["tail", "-n", "50", comfy_log],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.stdout.strip():
+                diag["comfyui_log_tail"] = result.stdout.strip()
+    except Exception as e:
+        diag["comfyui_log_error"] = str(e)
+
+    return diag
+
+
 def _attempt_websocket_reconnect(ws_url, max_attempts, delay_s, initial_error):
     """
     Attempts to reconnect to the WebSocket server after a disconnect.
@@ -100,9 +181,25 @@ def _attempt_websocket_reconnect(ws_url, max_attempts, delay_s, initial_error):
             print(
                 f"worker-comfyui - ComfyUI HTTP unreachable – aborting websocket reconnect: {srv_status.get('error', 'status '+str(srv_status.get('status_code')))}"
             )
-            raise websocket.WebSocketConnectionClosedException(
-                "ComfyUI HTTP unreachable during websocket reconnect"
-            )
+
+            # Collect diagnostics to help identify root cause (OOM, CUDA, etc.)
+            diag = _collect_crash_diagnostics()
+            for key, val in diag.items():
+                print(f"worker-comfyui - CRASH DIAG [{key}]: {val}")
+
+            crash_reason = "ComfyUI process crashed during execution"
+            if diag.get("oom_kill_detected"):
+                crash_reason = (
+                    "ComfyUI was OOM-killed (out of memory). "
+                    "Try a GPU with more VRAM or use a smaller/more quantized model."
+                )
+            elif diag.get("comfyui_process_alive") is False:
+                crash_reason = (
+                    "ComfyUI process is no longer running (likely crashed). "
+                    "Check logs above for CUDA errors or segfaults."
+                )
+
+            raise websocket.WebSocketConnectionClosedException(crash_reason)
 
         # Otherwise we proceed with reconnect attempts while server is up
         print(
@@ -787,7 +884,7 @@ def handler(job):
     except websocket.WebSocketException as e:
         print(f"worker-comfyui - WebSocket Error: {e}")
         print(traceback.format_exc())
-        return {"error": f"WebSocket communication error: {e}"}
+        return {"error": f"ComfyUI communication lost: {e}"}
     except requests.RequestException as e:
         print(f"worker-comfyui - HTTP Request Error: {e}")
         print(traceback.format_exc())

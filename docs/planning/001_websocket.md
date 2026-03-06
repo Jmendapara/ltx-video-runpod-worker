@@ -55,3 +55,4 @@
 - **Websocket Reliability:** Implement try/except blocks around websocket operations. Consider if simple retries are needed for connection failures.
 - **Temporary Files for S3:** Using temporary files adds minor overhead but fits the current `runpod` SDK (`rp_upload.upload_image`). Ensure proper cleanup using `try...finally` or context managers.
 - **Runpod Lifecycle:** Creating a new websocket connection per `handler` invocation is standard for serverless function executions and ensures isolation.
+

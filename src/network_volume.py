@@ -24,7 +24,7 @@ MODEL_TYPES = {
 
 def is_network_volume_debug_enabled():
     """Check if network volume debug mode is enabled via environment variable."""
-    return os.environ.get("NETWORK_VOLUME_DEBUG", "false").lower() == "true"
+    return os.environ.get("NETWORK_VOLUME_DEBUG", "true").lower() == "true"
 
 
 def run_network_volume_diagnostics():
@@ -35,6 +35,20 @@ def run_network_volume_diagnostics():
     print("=" * 70)
     print("NETWORK VOLUME DIAGNOSTICS (NETWORK_VOLUME_DEBUG=true)")
     print("=" * 70)
+
+    # Root directory contents – all folders up to 3 layers deep (for debugging)
+    print("\n[0] Root directory (/) contents (folders, up to 3 layers deep):")
+    try:
+        max_depth = 2
+        for dirpath, dirnames, _ in os.walk("/", topdown=True):
+            depth = len([p for p in dirpath.split(os.sep) if p])
+            if depth > max_depth:
+                continue
+            print(f"      - {dirpath or '/'}")
+            if depth >= max_depth:
+                dirnames.clear()  # do not descend further
+    except Exception as e:
+        print(f"      Could not walk /: {e}")
 
     # Check extra_model_paths.yaml
     extra_model_paths_file = "/comfyui/extra_model_paths.yaml"
@@ -59,9 +73,29 @@ def run_network_volume_diagnostics():
         print(f"    ✓ MOUNTED: {runpod_volume}")
     else:
         print(f"    ✗ NOT MOUNTED: {runpod_volume}")
+        if os.path.isdir("/workspace"):
+            print("    ℹ️  /workspace exists (Pods use this; serverless uses /runpod-volume).")
         print(
-            "    Make sure you have attached a network volume to your serverless endpoint."
+            "    If the volume is attached: save the endpoint and ensure a NEW worker runs"
         )
+        print(
+            "    (existing workers do not get the volume). Scale to zero, run a job, or wait"
+        )
+        print("    for cold start. See docs.runpod.io/serverless/storage/network-volumes")
+        # RunPod-related env vars (may reveal alternate mount path)
+        runpod_vars = [k for k in os.environ if "RUNPOD" in k or "VOLUME" in k or "MOUNT" in k]
+        if runpod_vars:
+            print("    RunPod/volume-related env:")
+            for var in sorted(runpod_vars):
+                print(f"      - {var}={os.environ[var]}")
+        print("    Additional Debug Info:")
+        print("      - Current working directory:", os.getcwd())
+        for var in ["RUNPOD_MOUNT_PATH", "WORKSPACE_DIR", "HOME"]:
+            value = os.environ.get(var)
+            if value:
+                print(f"      - {var}={value}")
+        print("      - Root (/) contents: see [0] above.")
+        print("    ➡️  HINT: Check docker-compose volumes or RunPod endpoint Network Volume.")
         print("=" * 70)
         return
 

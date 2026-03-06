@@ -9,6 +9,7 @@ ARG COMFYUI_VERSION=latest
 ARG CUDA_VERSION_FOR_COMFY
 ARG ENABLE_PYTORCH_UPGRADE=false
 ARG PYTORCH_INDEX_URL
+ARG PYTORCH_VERSION
 
 # Prevents prompts from packages asking for user input during installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -49,17 +50,20 @@ ENV PATH="/opt/venv/bin:${PATH}"
 # Install comfy-cli + dependencies needed by it to install ComfyUI
 RUN uv pip install comfy-cli pip setuptools wheel
 
-# Install ComfyUI
+# Install ComfyUI, then pin PyTorch to the correct CUDA version in the same
+# layer so the cu128 wheels comfy-cli pulls don't bloat the image.
 RUN if [ -n "${CUDA_VERSION_FOR_COMFY}" ]; then \
       /usr/bin/yes | comfy --workspace /comfyui install --version "${COMFYUI_VERSION}" --cuda-version "${CUDA_VERSION_FOR_COMFY}" --nvidia; \
     else \
       /usr/bin/yes | comfy --workspace /comfyui install --version "${COMFYUI_VERSION}" --nvidia; \
-    fi
-
-# Upgrade PyTorch if needed (for newer CUDA versions)
-RUN if [ "$ENABLE_PYTORCH_UPGRADE" = "true" ]; then \
+    fi && \
+    if [ "$ENABLE_PYTORCH_UPGRADE" = "true" ] && [ -n "${PYTORCH_VERSION}" ]; then \
+      uv pip install --force-reinstall torch==${PYTORCH_VERSION} torchvision torchaudio --index-url ${PYTORCH_INDEX_URL}; \
+    elif [ "$ENABLE_PYTORCH_UPGRADE" = "true" ]; then \
       uv pip install --force-reinstall torch torchvision torchaudio --index-url ${PYTORCH_INDEX_URL}; \
-    fi
+    fi && \
+    rm -rf /root/.cache/pip /root/.cache/uv /root/.cache/comfy-cli /tmp/* && \
+    uv cache clean
 
 # Change working directory to ComfyUI
 WORKDIR /comfyui
@@ -84,27 +88,44 @@ RUN chmod +x /usr/local/bin/comfy-node-install
 # Prevent pip from asking for confirmation during uninstall steps in custom nodes
 ENV PIP_NO_INPUT=1
 
-# Copy helper script to switch Manager network mode at container start
+# Model-specific custom nodes are installed in the final stage per MODEL_TYPE
 COPY scripts/comfy-manager-set-mode.sh /usr/local/bin/comfy-manager-set-mode
 RUN chmod +x /usr/local/bin/comfy-manager-set-mode
 
 # Set the default command to run when starting the container
 CMD ["/start.sh"]
 
-# Stage 2: Download models
-FROM base AS downloader
+# Stage 2: Final image — download models directly (avoids COPY duplication
+# that doubles disk usage during build for large models like INT8 ~83 GB).
+FROM base AS final
 
 ARG HUGGINGFACE_ACCESS_TOKEN
-# Set default model type if none is provided
-ARG MODEL_TYPE=flux1-dev-fp8
+ARG MODEL_TYPE=ltx-2.3
 
-# Change working directory to ComfyUI
 WORKDIR /comfyui
 
-# Create necessary directories upfront
 RUN mkdir -p models/checkpoints models/vae models/unet models/clip models/text_encoders models/diffusion_models models/model_patches
 
-# Download checkpoints/vae/unet/clip models to include in image based on model type
+# ---- Model-specific custom nodes and models ----
+# Copy patch script once (used only for Hunyuan)
+COPY scripts/patch-hunyuan-paths.py /tmp/patch-hunyuan-paths.py
+
+# HunyuanImage: install nodes + patch paths, then download model
+RUN if [ "$MODEL_TYPE" = "hunyuan-instruct-nf4" ] || [ "$MODEL_TYPE" = "hunyuan-instruct-int8" ]; then \
+      comfy-node-install https://github.com/EricRollei/Comfy_HunyuanImage3 && \
+      uv pip install "diffusers>=0.31.0" "transformers>=4.47.0,<5.0.0" "bitsandbytes>=0.48.2" "accelerate>=1.2.1" && \
+      python3 /tmp/patch-hunyuan-paths.py; \
+    fi
+RUN rm -f /tmp/patch-hunyuan-paths.py
+
+# LTX-2.3: install ComfyUI-LTXVideo and download distilled checkpoint
+RUN if [ "$MODEL_TYPE" = "ltx-2.3" ]; then \
+      comfy-node-install https://github.com/Lightricks/ComfyUI-LTXVideo && \
+      uv pip install "huggingface_hub[hf_xet]" && \
+      HF_TOKEN="${HUGGINGFACE_ACCESS_TOKEN}" python3 -c "import os; from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-22b-distilled.safetensors', local_dir='/comfyui/models/checkpoints', token=os.environ.get('HF_TOKEN') or None)" && \
+      rm -rf /root/.cache/huggingface /tmp/hf_xet* /tmp/tmp* && uv cache clean; \
+    fi
+
 RUN if [ "$MODEL_TYPE" = "sdxl" ]; then \
       wget -q -O models/checkpoints/sd_xl_base_1.0.safetensors https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors && \
       wget -q -O models/vae/sdxl_vae.safetensors https://huggingface.co/stabilityai/sdxl-vae/resolve/main/sdxl_vae.safetensors && \
@@ -140,8 +161,23 @@ RUN if [ "$MODEL_TYPE" = "z-image-turbo" ]; then \
       wget -q -O models/model_patches/Z-Image-Turbo-Fun-Controlnet-Union.safetensors https://huggingface.co/alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union/resolve/main/Z-Image-Turbo-Fun-Controlnet-Union.safetensors; \
     fi
 
-# Stage 3: Final image
-FROM base AS final
+RUN if [ "$MODEL_TYPE" = "hunyuan-instruct-nf4" ]; then \
+      uv pip install "huggingface_hub[hf_xet]" && \
+      python3 -c "from huggingface_hub import snapshot_download; snapshot_download('EricRollei/HunyuanImage-3.0-Instruct-Distil-NF4-v2', local_dir='/comfyui/models/HunyuanImage-3.0-Instruct-Distil-NF4')" && \
+      rm -rf /root/.cache/huggingface /tmp/hf_xet* /tmp/tmp* && \
+      uv cache clean; \
+    fi
 
-# Copy models from stage 2 to the final image
-COPY --from=downloader /comfyui/models /comfyui/models
+RUN if [ "$MODEL_TYPE" = "hunyuan-instruct-int8" ]; then \
+      uv pip install "huggingface_hub[hf_xet]" && \
+      python3 -c "from huggingface_hub import snapshot_download; snapshot_download('EricRollei/HunyuanImage-3.0-Instruct-Distil-INT8-v2', local_dir='/comfyui/models/HunyuanImage-3.0-Instruct-Distil-INT8')" && \
+      rm -rf /root/.cache/huggingface /tmp/hf_xet* /tmp/tmp* && \
+      uv cache clean; \
+    fi
+
+RUN if [ -d /comfyui/models/HunyuanImage-3.0-Instruct-Distil-NF4 ]; then \
+      ln -s HunyuanImage-3.0-Instruct-Distil-NF4 /comfyui/models/HunyuanImage-3.0-Instruct-Distil-NF4-v2; \
+    fi && \
+    if [ -d /comfyui/models/HunyuanImage-3.0-Instruct-Distil-INT8 ]; then \
+      ln -s HunyuanImage-3.0-Instruct-Distil-INT8 /comfyui/models/HunyuanImage-3.0-Instruct-Distil-INT8-v2; \
+    fi

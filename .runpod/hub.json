@@ -1,13 +1,13 @@
 {
   "title": "ComfyUI",
-  "description": "Generate images with ComfyUI using FLUX.1-dev (fp8)",
+  "description": "Generate video with ComfyUI using LTX-2.3 (22B distilled)",
   "type": "serverless",
-  "category": "image",
+  "category": "video",
   "iconUrl": "https://cpjrphpz3t5wbwfe.public.blob.vercel-storage.com/comfy-ui.png",
   "config": {
     "runsOn": "GPU",
-    "containerDiskInGb": 20,
-    "gpuIds": "ADA_24",
+    "containerDiskInGb": 80,
+    "gpuIds": "A100_80",
     "gpuCount": 1,
     "allowedCudaVersions": ["12.7", "12.6"],
     "env": [
@@ -108,6 +108,16 @@
           "type": "boolean",
           "description": "Restart the worker after each job for a clean state",
           "default": false,
+          "advanced": true
+        }
+      },
+      {
+        "key": "NETWORK_VOLUME_DEBUG",
+        "input": {
+          "name": "Network Volume Debug",
+          "type": "boolean",
+          "description": "Log network volume diagnostics at the start of each job (mount, model paths). See docs/network-volumes.md.",
+          "default": true,
           "advanced": true
         }
       }
