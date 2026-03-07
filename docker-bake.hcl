@@ -35,8 +35,12 @@ variable "HUGGINGFACE_ACCESS_TOKEN" {
   default = ""
 }
 
+variable "LTX_VARIANT" {
+  default = "distilled"
+}
+
 group "default" {
-  targets = ["base", "sdxl", "sd3", "flux1-schnell", "flux1-dev", "flux1-dev-fp8", "z-image-turbo", "ltx-2.3", "base-cuda12-8-1"]
+  targets = ["base", "sdxl", "sd3", "flux1-schnell", "flux1-dev", "flux1-dev-fp8", "z-image-turbo", "ltx-2.3", "ltx-2.3-dev", "base-cuda12-8-1"]
 }
 
 target "base" {
@@ -165,8 +169,26 @@ target "ltx-2.3" {
     ENABLE_PYTORCH_UPGRADE = "${ENABLE_PYTORCH_UPGRADE}"
     PYTORCH_INDEX_URL = "${PYTORCH_INDEX_URL}"
     MODEL_TYPE = "ltx-2.3"
+    LTX_VARIANT = "distilled"
   }
   tags = ["${DOCKERHUB_REPO}/${DOCKERHUB_IMG}:${RELEASE_VERSION}-ltx-2.3"]
+  inherits = ["base"]
+}
+
+target "ltx-2.3-dev" {
+  context = "."
+  dockerfile = "Dockerfile"
+  target = "final"
+  args = {
+    BASE_IMAGE = "${BASE_IMAGE}"
+    COMFYUI_VERSION = "${COMFYUI_VERSION}"
+    CUDA_VERSION_FOR_COMFY = "${CUDA_VERSION_FOR_COMFY}"
+    ENABLE_PYTORCH_UPGRADE = "${ENABLE_PYTORCH_UPGRADE}"
+    PYTORCH_INDEX_URL = "${PYTORCH_INDEX_URL}"
+    MODEL_TYPE = "ltx-2.3"
+    LTX_VARIANT = "dev"
+  }
+  tags = ["${DOCKERHUB_REPO}/${DOCKERHUB_IMG}:${RELEASE_VERSION}-ltx-2.3-dev"]
   inherits = ["base"]
 }
 
@@ -213,8 +235,26 @@ target "ltx-2.3-blackwell" {
     ENABLE_PYTORCH_UPGRADE = "true"
     PYTORCH_INDEX_URL = "https://download.pytorch.org/whl/cu128"
     MODEL_TYPE = "ltx-2.3"
+    LTX_VARIANT = "distilled"
   }
   tags = ["${DOCKERHUB_REPO}/${DOCKERHUB_IMG}:${RELEASE_VERSION}-ltx-2.3-blackwell"]
+  platforms = ["linux/amd64"]
+}
+
+target "ltx-2.3-dev-blackwell" {
+  context = "."
+  dockerfile = "Dockerfile"
+  target = "final"
+  args = {
+    BASE_IMAGE = "nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04"
+    COMFYUI_VERSION = "${COMFYUI_VERSION}"
+    CUDA_VERSION_FOR_COMFY = ""
+    ENABLE_PYTORCH_UPGRADE = "true"
+    PYTORCH_INDEX_URL = "https://download.pytorch.org/whl/cu128"
+    MODEL_TYPE = "ltx-2.3"
+    LTX_VARIANT = "dev"
+  }
+  tags = ["${DOCKERHUB_REPO}/${DOCKERHUB_IMG}:${RELEASE_VERSION}-ltx-2.3-dev-blackwell"]
   platforms = ["linux/amd64"]
 }
 

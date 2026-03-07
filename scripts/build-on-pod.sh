@@ -22,6 +22,7 @@ BRANCH="${BRANCH:-main}"
 MODEL_TYPE="${MODEL_TYPE:-ltx-2.3}"
 COMFYUI_VERSION="${COMFYUI_VERSION:-latest}"
 HUGGINGFACE_ACCESS_TOKEN="${HUGGINGFACE_ACCESS_TOKEN:-}"
+LTX_VARIANT="${LTX_VARIANT:-distilled}"
 
 # Docker Hub credentials
 : "${DOCKERHUB_USERNAME:?Set DOCKERHUB_USERNAME}"
@@ -37,6 +38,7 @@ echo "  Model type:    ${MODEL_TYPE}"
 echo "  ComfyUI ver:   ${COMFYUI_VERSION}"
 echo "  Image tag:     ${IMAGE_TAG}"
 echo "  CUDA level:   ${CUDA_LEVEL:-12.6}"
+echo "  LTX variant:   ${LTX_VARIANT}"
 echo "  HF token:      ${HUGGINGFACE_ACCESS_TOKEN:+(set)}"
 echo "============================================="
 
@@ -84,6 +86,7 @@ BUILD_ARGS=(
     --no-cache
     --build-arg "MODEL_TYPE=${MODEL_TYPE}"
     --build-arg "COMFYUI_VERSION=${COMFYUI_VERSION}"
+    --build-arg "LTX_VARIANT=${LTX_VARIANT}"
 )
 
 # CUDA version selection.

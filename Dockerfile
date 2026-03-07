@@ -101,6 +101,7 @@ FROM base AS final
 
 ARG HUGGINGFACE_ACCESS_TOKEN
 ARG MODEL_TYPE=ltx-2.3
+ARG LTX_VARIANT=distilled
 
 WORKDIR /comfyui
 
@@ -119,14 +120,18 @@ RUN if [ "$MODEL_TYPE" = "hunyuan-instruct-nf4" ] || [ "$MODEL_TYPE" = "hunyuan-
 RUN rm -f /tmp/patch-hunyuan-paths.py
 
 # LTX-2.3: install ComfyUI-LTXVideo, download checkpoint + text encoder + LoRA + spatial upscaler
+# LTX_VARIANT selects the checkpoint: "distilled" (default) or "dev"
 RUN if [ "$MODEL_TYPE" = "ltx-2.3" ]; then \
       comfy-node-install https://github.com/Lightricks/ComfyUI-LTXVideo && \
       uv pip install "huggingface_hub[hf_xet]" && \
-      HF_TOKEN="${HUGGINGFACE_ACCESS_TOKEN}" python3 -c "\
+      HF_TOKEN="${HUGGINGFACE_ACCESS_TOKEN}" LTX_VARIANT="${LTX_VARIANT}" python3 -c "\
 import os; from huggingface_hub import hf_hub_download; \
 token = os.environ.get('HF_TOKEN') or None; \
-hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-22b-distilled.safetensors', local_dir='/comfyui/models/checkpoints', token=token); \
-hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-22b-distilled-lora-384.safetensors', local_dir='/comfyui/models/loras', token=token); \
+variant = os.environ.get('LTX_VARIANT', 'distilled'); \
+ckpt = f'ltx-2.3-22b-{variant}.safetensors'; \
+hf_hub_download(repo_id='Lightricks/LTX-2.3', filename=ckpt, local_dir='/comfyui/models/checkpoints', token=token); \
+if variant == 'distilled': \
+    hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-22b-distilled-lora-384.safetensors', local_dir='/comfyui/models/loras', token=token); \
 hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-spatial-upscaler-x2-1.0.safetensors', local_dir='/comfyui/models/latent_upscale_models', token=token); \
 hf_hub_download(repo_id='Comfy-Org/ltx-2', filename='split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors', local_dir='/tmp/ltx-text-enc', token=token); \
 import shutil; shutil.move('/tmp/ltx-text-enc/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors', '/comfyui/models/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors'); \
