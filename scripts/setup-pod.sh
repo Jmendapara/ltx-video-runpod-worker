@@ -90,10 +90,8 @@ else
 from huggingface_hub import hf_hub_download
 import os, shutil
 token = os.environ.get('HF_TOKEN') or os.environ.get('HUGGINGFACE_ACCESS_TOKEN')
-variant = '${LTX_VARIANT}'
 hf_hub_download(repo_id='${HF_REPO}', filename='${CHECKPOINT_NAME}', local_dir='${CHECKPOINT_DIR}', token=token)
-if variant == 'distilled':
-    hf_hub_download(repo_id='${HF_REPO}', filename='ltx-2.3-22b-distilled-lora-384.safetensors', local_dir='${LORA_DIR}', token=token)
+hf_hub_download(repo_id='${HF_REPO}', filename='ltx-2.3-22b-distilled-lora-384.safetensors', local_dir='${LORA_DIR}', token=token)
 hf_hub_download(repo_id='${HF_REPO}', filename='ltx-2.3-spatial-upscaler-x2-1.0.safetensors', local_dir='${UPSCALER_DIR}', token=token)
 hf_hub_download(repo_id='Comfy-Org/ltx-2', filename='split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors', local_dir='/tmp/ltx-text-enc', token=token)
 shutil.move('/tmp/ltx-text-enc/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors', '${TEXT_ENC_DIR}/gemma_3_12B_it_fp4_mixed.safetensors')

@@ -130,7 +130,7 @@ token = os.environ.get('HF_TOKEN') or None; \
 variant = os.environ.get('LTX_VARIANT', 'distilled'); \
 ckpt = f'ltx-2.3-22b-{variant}.safetensors'; \
 hf_hub_download(repo_id='Lightricks/LTX-2.3', filename=ckpt, local_dir='/comfyui/models/checkpoints', token=token); \
-variant == 'distilled' and hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-22b-distilled-lora-384.safetensors', local_dir='/comfyui/models/loras', token=token); \
+hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-22b-distilled-lora-384.safetensors', local_dir='/comfyui/models/loras', token=token); \
 hf_hub_download(repo_id='Lightricks/LTX-2.3', filename='ltx-2.3-spatial-upscaler-x2-1.0.safetensors', local_dir='/comfyui/models/latent_upscale_models', token=token); \
 hf_hub_download(repo_id='Comfy-Org/ltx-2', filename='split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors', local_dir='/tmp/ltx-text-enc', token=token); \
 import shutil; shutil.move('/tmp/ltx-text-enc/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors', '/comfyui/models/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors'); \
